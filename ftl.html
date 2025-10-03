@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Flotilla Simulator</title>
     <style>
         * {
@@ -23,6 +23,10 @@
         
         #gameContainer {
             text-align: center;
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 10px;
         }
         
         #gameCanvas {
@@ -30,22 +34,92 @@
             background: #0f3460;
             image-rendering: pixelated;
             image-rendering: crisp-edges;
+            width: 100%;
+            height: auto;
+            max-width: 800px;
+            touch-action: none;
         }
         
         #hud {
-            margin-top: 20px;
-            font-size: 18px;
+            margin-top: 10px;
+            font-size: 16px;
             display: flex;
-            justify-content: space-around;
+            justify-content: center;
             flex-wrap: wrap;
-            gap: 20px;
+            gap: 10px;
+            padding: 0 5px;
         }
         
         .stat {
             background: rgba(0, 0, 255, 0.1);
-            padding: 10px 20px;
+            padding: 8px 12px;
             border: 2px solid #004499;
             border-radius: 5px;
+            min-width: 120px;
+            text-align: center;
+        }
+        
+        #mobileControls {
+            position: absolute;
+            bottom: 25%;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        #immunityButton {
+            background: rgba(0, 68, 153, 0.9);
+            color: white;
+            border: 3px solid #004499;
+            border-radius: 12px;
+            width: 120px;
+            height: 45px;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            pointer-events: auto;
+            box-shadow: 0 0 15px rgba(0, 68, 153, 0.5);
+            transition: all 0.2s ease;
+            animation: pulseAvailable 2s infinite;
+        }
+        
+        #immunityButton:disabled {
+            opacity: 0;
+            cursor: not-allowed;
+            animation: none;
+        }
+        
+        #immunityButton:active {
+            transform: scale(0.95);
+        }
+        
+        @keyframes pulseAvailable {
+            0% { opacity: 1; box-shadow: 0 0 15px rgba(0, 68, 153, 0.5); }
+            50% { opacity: 0.8; box-shadow: 0 0 25px rgba(0, 128, 255, 0.7); }
+            100% { opacity: 1; box-shadow: 0 0 15px rgba(0, 68, 153, 0.5); }
+        }
+        
+        @media (max-width: 480px) {
+            h1 {
+                font-size: 1.5em;
+                margin-bottom: 10px;
+            }
+            .stat {
+                font-size: 14px;
+                min-width: 100px;
+                padding: 5px 8px;
+            }
+            .controls {
+                font-size: 12px;
+                margin-top: 10px;
+            }
+
         }
         
         #gameOver {
@@ -99,7 +173,10 @@
             <div class="stat">🛡️ Inmunidad: <span id="immunity">OFF</span></div>
         </div>
         <div class="controls">
-            Controles: ⬅️➡️⬆️⬇️ Mover | ESPACIO: Activar Inmunidad (-100 puntos bronceado)
+            Controles: ⬅️➡️⬆️⬇️ Mover o toca/arrastra para mover | ESPACIO/botón: Activar Inmunidad (requiere puntos bronceado)
+        </div>
+        <div id="mobileControls">
+            <button id="immunityButton" disabled>INMUNIDAD 🛡️</button>
         </div>
         <div id="gameOver">
             <h2>¡PARTIDA TERMINADA!</h2>
@@ -131,6 +208,37 @@
         };
         
         const keys = {};
+        let lastKeyPressTime = 0;
+        let isPointerActive = false;
+        let pointerX = 0;
+        let pointerY = 0;
+        
+        function handlePointerMove(e) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            
+            // Get pointer position (mouse or touch)
+            const clientX = e.clientX || (e.touches && e.touches[0] ? e.touches[0].clientX : pointerX);
+            const clientY = e.clientY || (e.touches && e.touches[0] ? e.touches[0].clientY : pointerY);
+            
+            pointerX = (clientX - rect.left) * scaleX;
+            pointerY = (clientY - rect.top) * scaleY;
+            isPointerActive = true;
+        }
+        
+        function handlePointerEnd() {
+            isPointerActive = false;
+        }
+        
+        // Event listeners for mouse and touch
+        canvas.addEventListener('mousemove', handlePointerMove);
+        canvas.addEventListener('mousedown', handlePointerMove);
+        canvas.addEventListener('mouseup', handlePointerEnd);
+        canvas.addEventListener('mouseleave', handlePointerEnd);
+        canvas.addEventListener('touchstart', handlePointerMove);
+        canvas.addEventListener('touchmove', handlePointerMove);
+        canvas.addEventListener('touchend', handlePointerEnd);
         
         // Crear imágenes
         const images = {
@@ -394,7 +502,7 @@
         
         document.addEventListener('keydown', (e) => {
             keys[e.key] = true;
-            if (e.key === ' ' && gameState.bronceadoPoints >= 100 && !gameState.immune) {
+            if (e.key === ' ' && gameState.bronceadoPoints >= 100 + (difficulty * 2) && !gameState.immune) {
                 e.preventDefault();
                 activateImmunity();
             }
@@ -405,7 +513,7 @@
         });
         
         function activateImmunity() {
-            gameState.bronceadoPoints -= 100;
+            gameState.bronceadoPoints -= 100 + (difficulty * 2);
             gameState.immune = true;
             gameState.immuneTimer = 300;
             
@@ -481,6 +589,14 @@
             document.getElementById('bronceado').textContent = gameState.bronceadoPoints;
             document.getElementById('lives').textContent = gameState.lives;
             document.getElementById('immunity').textContent = gameState.immune ? 'ON' : 'OFF';
+            
+            // Update immunity button state
+            const immunityButton = document.getElementById('immunityButton');
+            const mobileControls = document.getElementById('mobileControls');
+            
+            const canActivate = !gameState.immune && gameState.bronceadoPoints >= 100;
+            immunityButton.disabled = !canActivate;
+            mobileControls.style.opacity = canActivate ? '1' : '0';
         }
         
         function gameLoop() {
@@ -499,8 +615,14 @@
                 ctx.lineTo(canvas.width, i * 40 + (Date.now() / 20) % 40);
                 ctx.stroke();
             }
+            // Comprobar si ha pasado suficiente tiempo desde la última tecla
+
+            // Keyboard controls
+            // Keyboard controls - update lastKeyPressTime for any movement key
+            if (keys['ArrowLeft'] || keys['ArrowRight'] || keys['ArrowUp'] || keys['ArrowDown']) {
+                lastKeyPressTime = Date.now();
+            }
             
-            // Mover jugador
             if (keys['ArrowLeft'] && gameState.player.x > 40) {
                 gameState.player.x -= gameState.player.speed;
             }
@@ -512,6 +634,27 @@
             }
             if (keys['ArrowDown'] && gameState.player.y < canvas.height - 30) {
                 gameState.player.y += gameState.player.speed;
+            }
+            if (isPointerActive && Date.now() - lastKeyPressTime > 100) {
+                // Smooth movement towards pointer
+                const dx = pointerX - gameState.player.x;
+                const dy = pointerY - gameState.player.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (distance > gameState.player.speed) {
+                    const moveX = (dx / distance) * gameState.player.speed;
+                    const moveY = (dy / distance) * gameState.player.speed;
+                    
+                    // Check boundaries
+                    if ((moveX < 0 && gameState.player.x > 40) || 
+                        (moveX > 0 && gameState.player.x < canvas.width - 40)) {
+                        gameState.player.x += moveX;
+                    }
+                    if ((moveY < 0 && gameState.player.y > 30) || 
+                        (moveY > 0 && gameState.player.y < canvas.height - 30)) {
+                        gameState.player.y += moveY;
+                    }
+                }
             }
             
             // Actualizar timer de inmunidad
@@ -638,6 +781,30 @@
             gameLoop();
         }
         
+        function activateImmunity() {
+            if (gameState.bronceadoPoints >= 100 && !gameState.immune) {
+                gameState.bronceadoPoints -= 100;
+                gameState.immune = true;
+                gameState.immuneTimer = 300;
+                gameState.allyShips = [
+                    { type: 'spain', x: gameState.player.x - 100, y: gameState.player.y },
+                    { type: 'italy', x: gameState.player.x + 100, y: gameState.player.y }
+                ];
+                updateHUD();
+            }
+        }
+
+        // Setup immunity button and spacebar
+        document.getElementById('immunityButton').addEventListener('click', activateImmunity);
+        
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' && !e.repeat) {
+                if (gameState.bronceadoPoints >= 100 && !gameState.immune) {
+                    activateImmunity();
+                }
+            }
+        });
+
         // Iniciar juego
         updateHUD();
         gameLoop();
